@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Interpreter - Real-time ASL Translator</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#135bec',
+                        'primary-dark': '#0d47a1',
+                        'background-light': '#f6f6f8',
+                        'background-dark': '#101622',
+                    },
+                    fontFamily: { display: ['Lexend', 'sans-serif'] },
+                },
+            },
+        }
+    </script>
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display min-h-screen">
+    <div id="app" class="relative flex h-screen w-full flex-col overflow-hidden max-w-md mx-auto bg-white dark:bg-slate-900">
+        
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="flex flex-col h-full items-center justify-center absolute inset-0 z-50 bg-white dark:bg-slate-900">
+            <div class="relative">
+                <div class="w-24 h-24 rounded-full border-4 border-primary/30"></div>
+                <div class="absolute inset-0 w-24 h-24 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+            </div>
+            <h2 class="mt-6 text-xl font-bold text-slate-800 dark:text-white">Loading ML Models...</h2>
+            <p id="loading-status" class="mt-2 text-sm text-slate-500">Initializing...</p>
+        </div>
+
+        <!-- Context Help Modal -->
+        <div id="context-modal" class="hidden fixed inset-0 z-[60] items-center justify-center p-4">
+            <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeContextModal()"></div>
+            <div class="relative bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl slide-up">
+                <button onclick="closeContextModal()" class="absolute top-3 right-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+                <div id="context-modal-content"></div>
+            </div>
+        </div>
+
+        <!-- Side Menu -->
+        <div id="side-menu" class="menu-slide fixed inset-0 z-50 bg-slate-900/95 backdrop-blur-xl transition-transform duration-300 flex flex-col">
+            <div class="flex items-center justify-between p-6 border-b border-slate-700">
+                <div>
+                    <h2 class="text-2xl font-bold text-white">Menu</h2>
+                    <p class="text-slate-400 text-sm mt-1">Quick navigation</p>
+                </div>
+                <button onclick="toggleMenu()" class="text-white p-2 hover:bg-slate-800 rounded-full">
+                    <span class="material-symbols-outlined text-3xl">close</span>
+                </button>
+            </div>
+            <div class="flex-1 p-4 space-y-2 overflow-y-auto">
+                <button onclick="showScreen('home'); toggleMenu()" class="w-full flex items-center gap-4 p-4 text-white hover:bg-slate-800 rounded-xl transition-colors group">
+                    <span class="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">home</span>
+                    <div class="text-left">
+                        <span class="font-semibold block">Home</span>
+                        <span class="text-xs text-slate-400">Dashboard & stats</span>
+                    </div>
+                </button>
+                <button onclick="showScreen('translate'); toggleMenu()" class="w-full flex items-center gap-4 p-4 text-white hover:bg-slate-800 rounded-xl transition-colors group">
+                    <span class="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">translate</span>
+                    <div class="text-left">
+                        <span class="font-semibold block">Translate</span>
+                        <span class="text-xs text-slate-400">Real-time ASL detection</span>
+                    </div>
+                </button>
+                <button onclick="showScreen('learn'); toggleMenu()" class="w-full flex items-center gap-4 p-4 text-white hover:bg-slate-800 rounded-xl transition-colors group">
+                    <span class="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">school</span>
+                    <div class="text-left">
+                        <span class="font-semibold block">Learn ASL</span>
+                        <span class="text-xs text-slate-400">A-Z reference guide</span>
+                    </div>
+                </button>
+                <button onclick="showScreen('numbers'); toggleMenu()" class="w-full flex items-center gap-4 p-4 text-white hover:bg-slate-800 rounded-xl transition-colors group">
+                    <span class="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">pin</span>
+                    <div class="text-left">
+                        <span class="font-semibold block">Numbers</span>
+                        <span class="text-xs text-slate-400">ASL numbers 0-10</span>
+                    </div>
+                </button>
+                <button onclick="showScreen('words'); toggleMenu()" class="w-full flex items-center gap-4 p-4 text-white hover:bg-slate-800 rounded-xl transition-colors group">
+                    <span class="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">text_fields</span>
+                    <div class="text-left">
+                        <span class="font-semibold block">Common Words</span>
+                        <span class="text-xs text-slate-400">Everyday phrases</span>
+                    </div>
+                </button>
+                <button onclick="showScreen('face'); toggleMenu()" class="w-full flex items-center gap-4 p-4 text-white hover:bg-slate-800 rounded-xl transition-colors group">
+                    <span class="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">face</span>
+                    <div class="text-left">
+                        <span class="font-semibold block">Face & Pose</span>
+                        <span class="text-xs text-slate-400">Face/Body tracking</span>
+                    </div>
+                </button>
+                <button onclick="showScreen('calibrate'); toggleMenu()" class="w-full flex items-center gap-4 p-4 text-white hover:bg-slate-800 rounded-xl transition-colors group">
+                    <span class="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">tune</span>
+                    <div class="text-left">
+                        <span class="font-semibold block">Calibration</span>
+                        <span class="text-xs text-slate-400">Improve accuracy</span>
+                    </div>
+                </button>
+                <button onclick="showScreen('history'); toggleMenu()" class="w-full flex items-center gap-4 p-4 text-white hover:bg-slate-800 rounded-xl transition-colors group">
+                    <span class="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">history</span>
+                    <div class="text-left">
+                        <span class="font-semibold block">History</span>
+                        <span class="text-xs text-slate-400">Past translations</span>
+                    </div>
+                </button>
+                <button onclick="showScreen('voice-settings'); toggleMenu()" class="w-full flex items-center gap-4 p-4 text-white hover:bg-slate-800 rounded-xl transition-colors group">
+                    <span class="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">record_voice_over</span>
+                    <div class="text-left">
+                        <span class="font-semibold block">Voice Settings</span>
+                        <span class="text-xs text-slate-400">Speech preferences</span>
+                    </div>
+                </button>
+                <button onclick="showScreen('about'); toggleMenu()" class="w-full flex items-center gap-4 p-4 text-white hover:bg-slate-800 rounded-xl transition-colors group">
+                    <span class="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">info</span>
+                    <div class="text-left">
+                        <span class="font-semibold block">About</span>
+                        <span class="text-xs text-slate-400">App information</span>
+                    </div>
+                </button>
+            </div>
+            <div class="p-4 border-t border-slate-700">
+                <button onclick="showScreen('settings'); toggleMenu()" class="w-full flex items-center gap-4 p-4 text-white hover:bg-slate-800 rounded-xl transition-colors group">
+                    <span class="material-symbols-outlined text-2xl group-hover:scale-110 transition-transform">settings</span>
+                    <div class="text-left">
+                        <span class="font-semibold block">Settings</span>
+                        <span class="text-xs text-slate-400">App preferences</span>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <!-- HOME SCREEN -->
+        <div id="home-screen" class="hidden flex-col h-full">
+            <div class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+                <button onclick="toggleMenu()" class="text-slate-700 dark:text-slate-300 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                    <span class="material-symbols-outlined text-2xl">menu</span>
+                </button>
+                <h1 class="text-slate-900 dark:text-white text-lg font-bold">Sign Interpreter</h1>
+                <button onclick="showScreen('settings')" class="text-slate-700 dark:text-slate-300 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                    <span class="material-symbols-outlined text-2xl">settings</span>
+                </button>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="p-4 grid grid-cols-3 gap-3">
+                <div class="bg-gradient-to-br from-primary to-blue-600 p-4 rounded-xl text-white">
+                    <span class="material-symbols-outlined text-2xl">translate</span>
+                    <p class="text-2xl font-bold mt-1" id="stat-translations">0</p>
+                    <p class="text-xs opacity-80">Translations</p>
+                </div>
+                <div class="bg-gradient-to-br from-green-500 to-green-600 p-4 rounded-xl text-white">
+                    <span class="material-symbols-outlined text-2xl">timer</span>
+                    <p class="text-2xl font-bold mt-1" id="stat-time">0m</p>
+                    <p class="text-xs opacity-80">Session Time</p>
+                </div>
+                <div class="bg-gradient-to-br from-purple-500 to-purple-600 p-4 rounded-xl text-white">
+                    <span class="material-symbols-outlined text-2xl">emoji_events</span>
+                    <p class="text-2xl font-bold mt-1" id="stat-accuracy">--</p>
+                    <p class="text-xs opacity-80">Accuracy</p>
+                </div>
+            </div>
+
+            <div class="p-4 grid grid-cols-2 gap-3">
+                <button onclick="showScreen('translate')" class="flex flex-col items-center justify-center p-6 bg-primary text-white rounded-xl shadow-lg shadow-primary/30 hover:scale-105 transition-transform">
+                    <span class="material-symbols-outlined text-4xl mb-2">translate</span>
+                    <span class="font-bold">Translate</span>
+                    <span class="text-xs opacity-80 mt-1">Real-time ASL</span>
+                </button>
+                <button onclick="showScreen('face')" class="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl shadow-lg hover:scale-105 transition-transform">
+                    <span class="material-symbols-outlined text-4xl mb-2">face</span>
+                    <span class="font-bold">Face & Pose</span>
+                    <span class="text-xs opacity-80 mt-1">Body Tracking</span>
+                </button>
+                <button onclick="showScreen('learn')" class="flex flex-col items-center justify-center p-6 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                    <span class="material-symbols-outlined text-4xl mb-2">school</span>
+                    <span class="font-bold">Learn ASL</span>
+                    <span class="text-xs text-slate-500 mt-1">A-Z Guide</span>
+                </button>
+                <button onclick="showScreen('numbers')" class="flex flex-col items-center justify-center p-6 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                    <span class="material-symbols-outlined text-4xl mb-2">pin</span>
+                    <span class="font-bold">Numbers</span>
+                    <span class="text-xs text-slate-500 mt-1">0-10 in ASL</span>
+                </button>
+                <button onclick="showScreen('words')" class="flex flex-col items-center justify-center p-6 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                    <span class="material-symbols-outlined text-4xl mb-2">text_fields</span>
+                    <span class="font-bold">Words</span>
+                    <span class="text-xs text-slate-500 mt-1">Common phrases</span>
+                </button>
+                <button onclick="showScreen('calibrate')" class="flex flex-col items-center justify-center p-6 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                    <span class="material-symbols-outlined text-4xl mb-2">tune</span>
+                    <span class="font-bold">Calibrate</span>
+                    <span class="text-xs text-slate-500 mt-1">Improve Accuracy</span>
+                </button>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="px-4 mb-2">
+                <div class="flex gap-2">
+                    <button onclick="showScreen('calibrate')" class="flex-1 flex items-center justify-center gap-2 py-3 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-xl text-sm font-medium">
+                        <span class="material-symbols-outlined text-lg">tune</span>Calibrate
+                    </button>
+                    <button onclick="showScreen('history')" class="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-medium">
+                        <span class="material-symbols-outlined text-lg">history</span>History
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 px-4 overflow-y-auto">
+                <h2 class="text-slate-900 dark:text-white text-lg font-bold mb-3">Recent Translations</h2>
+                <div id="translation-history" class="space-y-3">
+                    <p class="text-slate-500 text-sm text-center py-4">No translations yet</p>
+                </div>
+            </div>
+
+            <div class="flex gap-2 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 pb-6 pt-3">
+                <button onclick="showScreen('home')" class="flex flex-1 flex-col items-center justify-center gap-1 text-primary">
+                    <span class="material-symbols-outlined text-[28px] fill-1">home</span>
+                    <p class="text-xs font-medium">Home</p>
+                </button>
+                <button onclick="showScreen('translate')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500 hover:text-primary">
+                    <span class="material-symbols-outlined text-[28px]">translate</span>
+                    <p class="text-xs font-medium">Translate</p>
+                </button>
+                <button onclick="showScreen('learn')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500 hover:text-primary">
+                    <span class="material-symbols-outlined text-[28px]">school</span>
+                    <p class="text-xs font-medium">Learn</p>
+                </button>
+                <button onclick="showScreen('settings')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500 hover:text-primary">
+                    <span class="material-symbols-outlined text-[28px]">settings</span>
+                    <p class="text-xs font-medium">Settings</p>
+                </button>
+            </div>
+        </div>
+
+        <!-- TRANSLATE SCREEN (Main Menu - Full Screen Camera) -->
+        <div id="translate-screen" class="hidden flex-col h-full">
+            <div class="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-4 bg-gradient-to-b from-black/60 to-transparent">
+                <button onclick="toggleMenu()" class="text-white p-2 hover:bg-white/10 rounded-full">
+                    <span class="material-symbols-outlined text-2xl">menu</span>
+                </button>
+                <div class="flex items-center gap-2">
+                    <span class="text-white font-semibold">Sign Interpreter</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="showScreen('home')" class="text-white p-2 hover:bg-white/10 rounded-full" title="Home">
+                        <span class="material-symbols-outlined text-2xl">home</span>
+                    </button>
+                    <button onclick="showScreen('voice-settings')" class="text-white p-2 hover:bg-white/10 rounded-full" title="Settings">
+                        <span class="material-symbols-outlined text-2xl">settings</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 camera-feed relative">
+                <video id="inputVideo" class="w-full h-full object-cover" autoplay playsinline></video>
+                <canvas id="outputCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                
+                <div class="absolute top-16 left-4 flex flex-col gap-2">
+                    <div class="bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2">
+                        <span id="ml-status" class="w-2 h-2 rounded-full bg-green-500"></span>
+                        <span class="text-xs text-white">ML Active</span>
+                    </div>
+                    <div class="bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2">
+                        <span id="face-status" class="w-2 h-2 rounded-full bg-slate-400"></span>
+                        <span id="face-indicator" class="text-xs text-white">Face: --</span>
+                    </div>
+                    <div class="bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2">
+                        <span id="motion-dot" class="w-2 h-2 rounded-full bg-yellow-500"></span>
+                        <span id="motion-indicator" class="text-xs text-white">Motion: Idle</span>
+                    </div>
+                    <div class="bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2">
+                        <span class="material-symbols-outlined text-xs text-white">speed</span>
+                        <span id="fps-counter" class="text-xs text-white">-- FPS</span>
+                    </div>
+                </div>
+
+                <!-- Confidence indicator -->
+                <div class="absolute top-16 right-4">
+                    <div class="bg-black/50 backdrop-blur-sm px-3 py-2 rounded-xl">
+                        <p class="text-xs text-white/70 mb-1">Confidence</p>
+                        <div class="w-20 h-2 bg-white/20 rounded-full overflow-hidden">
+                            <div id="confidence-bar" class="h-full bg-green-500 transition-all duration-200" style="width: 0%"></div>
+                        </div>
+                        <p id="confidence-value" class="text-xs text-white text-right mt-1">--%</p>
+                    </div>
+                </div>
+
+                <!-- Quick Navigation Buttons -->
+                <div class="absolute right-4 top-48 flex flex-col gap-3">
+                    <button onclick="showScreen('learn')" class="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-black/50 backdrop-blur-sm text-white border border-white/20 hover:bg-black/70 transition-all" title="Learn ASL">
+                        <span class="material-symbols-outlined text-xl">school</span>
+                        <span class="text-[10px]">Learn</span>
+                    </button>
+                    <button onclick="showScreen('numbers')" class="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-black/50 backdrop-blur-sm text-white border border-white/20 hover:bg-black/70 transition-all" title="Numbers">
+                        <span class="material-symbols-outlined text-xl">pin</span>
+                        <span class="text-[10px]">Numbers</span>
+                    </button>
+                    <button onclick="showScreen('words')" class="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-black/50 backdrop-blur-sm text-white border border-white/20 hover:bg-black/70 transition-all" title="Words">
+                        <span class="material-symbols-outlined text-xl">text_fields</span>
+                        <span class="text-[10px]">Words</span>
+                    </button>
+                    <button onclick="showScreen('face')" class="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-black/50 backdrop-blur-sm text-white border border-white/20 hover:bg-black/70 transition-all" title="Face & Pose">
+                        <span class="material-symbols-outlined text-xl">face</span>
+                        <span class="text-[10px]">Face</span>
+                    </button>
+                    <button onclick="showScreen('history')" class="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-black/50 backdrop-blur-sm text-white border border-white/20 hover:bg-black/70 transition-all" title="History">
+                        <span class="material-symbols-outlined text-xl">history</span>
+                        <span class="text-[10px]">History</span>
+                    </button>
+                    <button onclick="showScreen('calibrate')" class="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-black/50 backdrop-blur-sm text-white border border-white/20 hover:bg-black/70 transition-all" title="Calibrate">
+                        <span class="material-symbols-outlined text-xl">tune</span>
+                        <span class="text-[10px]">Calibrate</span>
+                    </button>
+                </div>
+
+                <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div class="w-64 h-64 border-2 border-white/30 rounded-xl relative detecting" id="focus-frame">
+                        <div class="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-primary rounded-tl-lg"></div>
+                        <div class="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-primary rounded-tr-lg"></div>
+                        <div class="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-primary rounded-bl-lg"></div>
+                        <div class="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-primary rounded-br-lg"></div>
+                        <div class="absolute top-2 left-1/2 -translate-x-1/2 text-white/50 text-xs">Position hand here</div>
+                    </div>
+                </div>
+
+                <!-- Detected gesture type -->
+                <div class="absolute bottom-40 left-4 bg-black/50 backdrop-blur-sm px-3 py-2 rounded-xl">
+                    <p class="text-xs text-white/70 mb-1">Gesture Type</p>
+                    <p id="gesture-type" class="text-sm text-white font-medium">--</p>
+                </div>
+            </div>
+
+            <div class="absolute bottom-0 left-0 right-0 px-4 pb-4">
+                <div class="flex flex-col gap-4 rounded-xl border border-white/20 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-5 shadow-2xl">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="text-primary text-xs font-bold uppercase">Live Translation</span>
+                            <button onclick="showContextHelp('translation')" class="text-slate-400 hover:text-primary">
+                                <span class="material-symbols-outlined text-sm">help_outline</span>
+                            </button>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button onclick="clearCurrentText()" class="text-slate-500 hover:text-red-500 text-xs flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm">clear</span>Clear
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-2 min-h-[80px]">
+                        <p id="detected-sign" class="text-slate-900 dark:text-slate-100 text-3xl font-bold leading-tight">--</p>
+                        <p id="gesture-desc" class="text-slate-500 text-sm">Show hand to camera to begin</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button onclick="speakText()" class="flex-1 flex items-center justify-center gap-2 rounded-lg h-14 bg-primary text-white text-lg font-bold shadow-lg hover:bg-primary-dark transition-colors">
+                            <span class="material-symbols-outlined">volume_up</span>
+                            <span>Speak</span>
+                        </button>
+                        <button onclick="copyText()" class="flex items-center justify-center rounded-lg size-14 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">
+                            <span class="material-symbols-outlined">content_copy</span>
+                        </button>
+                        <button onclick="saveToHistory()" class="flex items-center justify-center rounded-lg size-14 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">
+                            <span class="material-symbols-outlined">bookmark_add</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LEARN ASL SCREEN -->
+        <div id="learn-screen" class="hidden flex-col h-full">
+            <div class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+                <button onclick="showScreen('home')" class="text-slate-700 dark:text-slate-300 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                    <span class="material-symbols-outlined text-2xl">arrow_back</span>
+                </button>
+                <h1 class="text-slate-900 dark:text-white text-lg font-bold">Learn ASL Alphabet</h1>
+                <button onclick="showContextHelp('learn')" class="text-slate-500 p-2">
+                    <span class="material-symbols-outlined text-xl">help_outline</span>
+                </button>
+            </div>
+            
+            <!-- Filter tabs -->
+            <div class="px-4 py-2 border-b border-slate-100 dark:border-slate-800">
+                <div class="flex gap-2 overflow-x-auto pb-2" id="learn-tabs">
+                    <button onclick="filterAlphabet('all')" class="learn-filter active px-3 py-1.5 bg-primary text-white rounded-full text-xs font-medium whitespace-nowrap">All</button>
+                    <button onclick="filterAlphabet('easy')" class="learn-filter px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full text-xs font-medium whitespace-nowrap">Easy</button>
+                    <button onclick="filterAlphabet('medium')" class="learn-filter px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full text-xs font-medium whitespace-nowrap">Medium</button>
+                    <button onclick="filterAlphabet('hard')" class="learn-filter px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full text-xs font-medium whitespace-nowrap">Hard</button>
+                </div>
+            </div>
+
+            <div class="flex-1 p-4 overflow-y-auto">
+                <div class="grid grid-cols-3 gap-3" id="alphabet-grid"></div>
+            </div>
+
+            <!-- Letter Detail Modal -->
+            <div id="letter-modal" class="hidden fixed inset-0 z-[60]">
+                <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeLetterModal()"></div>
+                <div class="absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-800 rounded-t-2xl p-6 slide-up max-h-[80vh] overflow-y-auto">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 id="modal-letter" class="text-4xl font-bold text-primary">A</h2>
+                        <button onclick="closeLetterModal()" class="text-slate-400">
+                            <span class="material-symbols-outlined text-2xl">close</span>
+                        </button>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl">
+                            <h3 class="font-semibold mb-2 flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">description</span>Description
+                            </h3>
+                            <p id="modal-desc" class="text-slate-600 dark:text-slate-300">Fist with thumb to the side</p>
+                        </div>
+                        <div class="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl">
+                            <h3 class="font-semibold mb-2 flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">back_hand</span>Finger Position
+                            </h3>
+                            <p id="modal-fingers" class="text-slate-600 dark:text-slate-300">Thumb beside fist</p>
+                        </div>
+                        <div class="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl">
+                            <h3 class="font-semibold mb-2 flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">tips_and_updates</span>Tips
+                            </h3>
+                            <p id="modal-tips" class="text-slate-600 dark:text-slate-300">Keep your hand steady and ensure good lighting</p>
+                        </div>
+                        <button onclick="practiceLetter()" class="w-full flex items-center justify-center gap-2 py-3 bg-primary text-white rounded-xl font-semibold">
+                            <span class="material-symbols-outlined">videocam</span>Practice Now
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-2 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 pb-6 pt-3">
+                <button onclick="showScreen('home')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">home</span>
+                    <p class="text-xs font-medium">Home</p>
+                </button>
+                <button onclick="showScreen('translate')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">translate</span>
+                    <p class="text-xs font-medium">Translate</p>
+                </button>
+                <button onclick="showScreen('learn')" class="flex flex-1 flex-col items-center justify-center gap-1 text-primary">
+                    <span class="material-symbols-outlined text-[28px] fill-1">school</span>
+                    <p class="text-xs font-medium">Learn</p>
+                </button>
+                <button onclick="showScreen('settings')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">settings</span>
+                    <p class="text-xs font-medium">Settings</p>
+                </button>
+            </div>
+        </div>
+
+        <!-- NUMBERS SCREEN -->
+        <div id="numbers-screen" class="hidden flex-col h-full">
+            <div class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+                <button onclick="showScreen('home')" class="text-slate-700 dark:text-slate-300 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                    <span class="material-symbols-outlined text-2xl">arrow_back</span>
+                </button>
+                <h1 class="text-slate-900 dark:text-white text-lg font-bold">ASL Numbers</h1>
+                <button onclick="showContextHelp('numbers')" class="text-slate-500 p-2">
+                    <span class="material-symbols-outlined text-xl">help_outline</span>
+                </button>
+            </div>
+            <div class="flex-1 p-4 overflow-y-auto">
+                <div class="grid grid-cols-4 gap-3" id="numbers-grid"></div>
+            </div>
+            <div class="flex gap-2 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 pb-6 pt-3">
+                <button onclick="showScreen('home')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">home</span>
+                    <p class="text-xs font-medium">Home</p>
+                </button>
+                <button onclick="showScreen('translate')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">translate</span>
+                    <p class="text-xs font-medium">Translate</p>
+                </button>
+                <button onclick="showScreen('learn')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">school</span>
+                    <p class="text-xs font-medium">Learn</p>
+                </button>
+                <button onclick="showScreen('settings')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">settings</span>
+                    <p class="text-xs font-medium">Settings</p>
+                </button>
+            </div>
+        </div>
+
+        <!-- COMMON WORDS SCREEN -->
+        <div id="words-screen" class="hidden flex-col h-full">
+            <div class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+                <button onclick="showScreen('home')" class="text-slate-700 dark:text-slate-300 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                    <span class="material-symbols-outlined text-2xl">arrow_back</span>
+                </button>
+                <h1 class="text-slate-900 dark:text-white text-lg font-bold">Common Words</h1>
+                <button onclick="showContextHelp('words')" class="text-slate-500 p-2">
+                    <span class="material-symbols-outlined text-xl">help_outline</span>
+                </button>
+            </div>
+            <div class="px-4 py-2 border-b border-slate-100 dark:border-slate-800">
+                <div class="flex gap-2 overflow-x-auto pb-2" id="word-categories">
+                    <button onclick="filterWords('greetings')" class="word-filter active px-3 py-1.5 bg-primary text-white rounded-full text-xs font-medium whitespace-nowrap">Greetings</button>
+                    <button onclick="filterWords('questions')" class="word-filter px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full text-xs font-medium whitespace-nowrap">Questions</button>
+                    <button onclick="filterWords('everyday')" class="word-filter px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full text-xs font-medium whitespace-nowrap">Everyday</button>
+                </div>
+            </div>
+            <div class="flex-1 p-4 overflow-y-auto">
+                <div class="grid grid-cols-2 gap-3" id="words-grid"></div>
+            </div>
+            <div class="flex gap-2 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 pb-6 pt-3">
+                <button onclick="showScreen('home')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">home</span>
+                    <p class="text-xs font-medium">Home</p>
+                </button>
+                <button onclick="showScreen('translate')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">translate</span>
+                    <p class="text-xs font-medium">Translate</p>
+                </button>
+                <button onclick="showScreen('learn')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">school</span>
+                    <p class="text-xs font-medium">Learn</p>
+                </button>
+                <button onclick="showScreen('settings')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">settings</span>
+                    <p class="text-xs font-medium">Settings</p>
+                </button>
+            </div>
+        </div>
+
+        <!-- HISTORY SCREEN -->
+        <div id="history-screen" class="hidden flex-col h-full">
+            <div class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+                <button onclick="showScreen('home')" class="text-slate-700 dark:text-slate-300 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                    <span class="material-symbols-outlined text-2xl">arrow_back</span>
+                </button>
+                <h1 class="text-slate-900 dark:text-white text-lg font-bold">Translation History</h1>
+                <div class="flex items-center gap-2">
+                    <button onclick="exportHistory()" class="text-primary p-2">
+                        <span class="material-symbols-outlined text-xl">download</span>
+                    </button>
+                    <button onclick="clearHistory()" class="text-red-500 p-2">
+                        <span class="material-symbols-outlined text-xl">delete</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- History stats -->
+            <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-slate-500">Total translations</span>
+                    <span id="history-count" class="font-bold text-primary">0</span>
+                </div>
+            </div>
+
+            <div class="flex-1 p-4 overflow-y-auto" id="history-list">
+                <p class="text-slate-500 text-center py-8">No translation history yet</p>
+            </div>
+
+            <div class="flex gap-2 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 pb-6 pt-3">
+                <button onclick="showScreen('home')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">home</span>
+                    <p class="text-xs font-medium">Home</p>
+                </button>
+                <button onclick="showScreen('translate')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">translate</span>
+                    <p class="text-xs font-medium">Translate</p>
+                </button>
+                <button onclick="showScreen('learn')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">school</span>
+                    <p class="text-xs font-medium">Learn</p>
+                </button>
+                <button onclick="showScreen('settings')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">settings</span>
+                    <p class="text-xs font-medium">Settings</p>
+                </button>
+            </div>
+        </div>
+
+        <!-- SETTINGS SCREEN -->
+        <div id="settings-screen" class="hidden flex-col h-full">
+            <div class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+                <button onclick="showScreen('home')" class="text-slate-700 dark:text-slate-300 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                    <span class="material-symbols-outlined text-2xl">arrow_back</span>
+                </button>
+                <h1 class="text-slate-900 dark:text-white text-lg font-bold">Settings</h1>
+                <button onclick="showContextHelp('settings')" class="text-slate-500 p-2">
+                    <span class="material-symbols-outlined text-xl">help_outline</span>
+                </button>
+            </div>
+            <div class="flex-1 p-4 space-y-3 overflow-y-auto">
+                <!-- Display Settings -->
+                <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <h3 class="font-bold text-sm text-slate-500 uppercase mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-sm">palette</span>Display
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-primary">dark_mode</span>
+                                <span class="font-semibold">Dark Mode</span>
+                            </div>
+                            <button id="dark-mode-toggle" onclick="toggleDarkMode()" class="w-12 h-6 bg-slate-300 dark:bg-primary rounded-full relative transition-colors">
+                                <div class="absolute top-1 bg-white w-4 h-4 rounded-full transition-all duration-200 dark:left-7"></div>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-primary">visibility</span>
+                                <span class="font-semibold">Show Landmarks</span>
+                            </div>
+                            <button id="landmarks-toggle" onclick="toggleLandmarks()" class="w-12 h-6 bg-primary rounded-full relative transition-colors">
+                                <div class="absolute left-7 top-1 bg-white w-4 h-4 rounded-full transition-all duration-200"></div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ML Settings -->
+                <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <h3 class="font-bold text-sm text-slate-500 uppercase mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-sm">psychology</span>ML Settings
+                    </h3>
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center gap-3">
+                                    <span class="material-symbols-outlined text-primary">tune</span>
+                                    <span class="font-semibold">ML Sensitivity</span>
+                                </div>
+                                <select id="sensitivity-select" onchange="updateSensitivity()" class="bg-white dark:bg-slate-700 text-sm font-semibold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600">
+                                    <option value="0.7">High</option>
+                                    <option value="0.5" selected>Medium</option>
+                                    <option value="0.3">Low</option>
+                                </select>
+                            </div>
+                            <p class="text-xs text-slate-500 ml-10">Higher = more responsive, lower = more accurate</p>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-primary">speed</span>
+                                <span class="font-semibold">Motion Tracking</span>
+                            </div>
+                            <button id="motion-toggle" onclick="toggleMotion()" class="w-12 h-6 bg-primary rounded-full relative">
+                                <div class="absolute left-7 top-1 bg-white w-4 h-4 rounded-full transition-all duration-200"></div>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-primary">gesture</span>
+                                <span class="font-semibold">Hand Detection</span>
+                            </div>
+                            <button id="hand-toggle" onclick="toggleHand()" class="w-12 h-6 bg-primary rounded-full relative">
+                                <div class="absolute left-7 top-1 bg-white w-4 h-4 rounded-full transition-all duration-200"></div>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-primary">face</span>
+                                <span class="font-semibold">Face Detection</span>
+                            </div>
+                            <button id="face-toggle" onclick="toggleFace()" class="w-12 h-6 bg-primary rounded-full relative">
+                                <div class="absolute left-7 top-1 bg-white w-4 h-4 rounded-full transition-all duration-200"></div>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-primary">accessibility_new</span>
+                                <span class="font-semibold">Pose Detection</span>
+                            </div>
+                            <button id="pose-toggle" onclick="togglePose()" class="w-12 h-6 bg-primary rounded-full relative">
+                                <div class="absolute left-7 top-1 bg-white w-4 h-4 rounded-full transition-all duration-200"></div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notification Settings -->
+                <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <h3 class="font-bold text-sm text-slate-500 uppercase mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-sm">notifications</span>Notifications
+                    </h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-primary">sound</span>
+                                <span class="font-semibold">Sound Feedback</span>
+                            </div>
+                            <button id="sound-toggle" onclick="toggleSound()" class="w-12 h-6 bg-slate-300 dark:bg-slate-600 rounded-full relative">
+                                <div class="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-all duration-200"></div>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-primary">vibration</span>
+                                <span class="font-semibold">Vibration</span>
+                            </div>
+                            <button id="vibration-toggle" onclick="toggleVibration()" class="w-12 h-6 bg-slate-300 dark:bg-slate-600 rounded-full relative">
+                                <div class="absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-all duration-200"></div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Settings -->
+                <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <h3 class="font-bold text-sm text-slate-500 uppercase mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-sm">storage</span>Data
+                    </h3>
+                    <div class="space-y-3">
+                        <button onclick="clearHistory()" class="w-full flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg">
+                            <span class="flex items-center gap-2 font-semibold">
+                                <span class="material-symbols-outlined">delete</span>Clear History
+                            </span>
+                        </button>
+                        <button onclick="resetSettings()" class="w-full flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg">
+                            <span class="flex items-center gap-2 font-semibold">
+                                <span class="material-symbols-outlined">restart_alt</span>Reset All Settings
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-2 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 pb-6 pt-3">
+                <button onclick="showScreen('home')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">home</span>
+                    <p class="text-xs font-medium">Home</p>
+                </button>
+                <button onclick="showScreen('translate')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">translate</span>
+                    <p class="text-xs font-medium">Translate</p>
+                </button>
+                <button onclick="showScreen('learn')" class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-500">
+                    <span class="material-symbols-outlined text-[28px]">school</span>
+                    <p class="text-xs font-medium">Learn</p>
+                </button>
+                <button onclick="showScreen('settings')" class="flex flex-1 flex-col items-center justify-center gap-1 text-primary">
+                    <span class="material-symbols-outlined text-[28px] fill-1">settings</span>
+                    <p class="text-xs font-medium">Settings</p>
+                </button>
+            </div>
+        </div>
+
+        <!-- VOICE SETTINGS SCREEN -->
+        <div id="voice-settings-screen" class="hidden flex-col h-full">
+            <div class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+                <button onclick="showScreen('translate')" class="text-slate-700 dark:text-slate-300 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                    <span class="material-symbols-outlined text-2xl">arrow_back</span>
+                </button>
+                <h1 class="text-slate-900 dark:text-white text-lg font-bold">Voice Settings</h1>
+                <button onclick="showContextHelp('voice')" class="text-slate-500 p-2">
+                    <span class="material-symbols-outlined text-xl">help_outline</span>
+                </button>
+            </div>
+            <div class="flex-1 p-4 space-y-6 overflow-y-auto">
+                <section class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <div class="flex items-center gap-2 mb-4">
+                        <span class="material-symbols-outlined text-primary">record_voice_over</span>
+                        <h3 class="font-bold">Voice Profile</h3>
+                    </div>
+                    <div class="flex h-12 rounded-xl bg-white dark:bg-slate-700 p-1.5">
+                        <label class="flex-1 flex items-center justify-center rounded-lg cursor-pointer has-[:checked]:bg-primary has-[:checked]:text-white text-xs font-semibold transition-colors">
+                            <input class="invisible w-0" name="voice" type="radio" onclick="setVoiceGender('male')"/>Male
+                        </label>
+                        <label class="flex-1 flex items-center justify-center rounded-lg cursor-pointer has-[:checked]:bg-primary has-[:checked]:text-white text-xs font-semibold transition-colors">
+                            <input class="invisible w-0" name="voice" type="radio" checked onclick="setVoiceGender('female')"/>Female
+                        </label>
+                        <label class="flex-1 flex items-center justify-center rounded-lg cursor-pointer has-[:checked]:bg-primary has-[:checked]:text-white text-xs font-semibold transition-colors">
+                            <input class="invisible w-0" name="voice" type="radio" onclick="setVoiceGender('neutral')"/>Neutral
+                        </label>
+                    </div>
+                </section>
+                
+                <section class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">speed</span>
+                            <h3 class="font-bold">Speech Speed</h3>
+                        </div>
+                        <span id="speed-value" class="text-primary font-bold text-sm bg-primary/10 px-2 py-1 rounded-lg">1.0x</span>
+                    </div>
+                    <input type="range" min="0.5" max="2" step="0.1" value="1" oninput="updateSpeed(this.value)" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary">
+                    <div class="flex justify-between text-xs text-slate-500 mt-1">
+                        <span>0.5x</span><span>2.0x</span>
+                    </div>
+                </section>
+
+                <section class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">graphic_eq</span>
+                            <h3 class="font-bold">Voice Pitch</h3>
+                        </div>
+                        <span id="pitch-value" class="text-primary font-bold text-sm bg-primary/10 px-2 py-1 rounded-lg">Medium</span>
+                    </div>
+                    <input type="range" min="0.5" max="2" step="0.1" value="1" oninput="updatePitch(this.value)" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary">
+                    <div class="flex justify-between text-xs text-slate-500 mt-1">
+                        <span>Low</span><span>High</span>
+                    </div>
+                </section>
+
+                <section class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">volume_up</span>
+                            <h3 class="font-bold">Volume</h3>
+                        </div>
+                        <span id="volume-value" class="text-primary font-bold text-sm bg-primary/10 px-2 py-1 rounded-lg">100%</span>
+                    </div>
+                    <input type="range" min="0" max="1" step="0.1" value="1" oninput="updateVolume(this.value)" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary">
+                </section>
+
+                <button onclick="testVoice()" class="w-full flex items-center justify-center gap-2 py-4 bg-primary text-white font-bold rounded-xl hover:bg-primary-dark transition-colors">
+                    <span class="material-symbols-outlined">play_circle</span>Test Voice
+                </button>
+            </div>
+        </div>
+
+        <!-- CALIBRATE SCREEN -->
+        <div id="calibrate-screen" class="hidden flex-col h-full">
+            <div class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+                <button onclick="showScreen('home')" class="text-slate-700 dark:text-slate-300 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                    <span class="material-symbols-outlined text-2xl">arrow_back</span>
+                </button>
+                <h1 class="text-slate-900 dark:text-white text-lg font-bold">Calibration</h1>
+                <button onclick="showContextHelp('calibrate')" class="text-slate-500 p-2">
+                    <span class="material-symbols-outlined text-xl">help_outline</span>
+                </button>
+            </div>
+            <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs uppercase text-slate-500">Calibration Progress</span>
+                    <span id="calib-progress" class="text-xs font-bold text-primary">1 / 5</span>
+                </div>
+                <div class="flex gap-2 h-1.5">
+                    <div id="prog-1" class="h-full flex-1 rounded-full bg-primary"></div>
+                    <div id="prog-2" class="h-full flex-1 rounded-full bg-slate-200"></div>
+                    <div id="prog-3" class="h-full flex-1 rounded-full bg-slate-200"></div>
+                    <div id="prog-4" class="h-full flex-1 rounded-full bg-slate-200"></div>
+                    <div id="prog-5" class="h-full flex-1 rounded-full bg-slate-200"></div>
+                </div>
+            </div>
+            <div class="flex-1 flex flex-col items-center px-6 pt-4">
+                <div class="relative w-full aspect-[4/3] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border-2 border-primary/20">
+                    <video id="calibVideo" class="w-full h-full object-cover" autoplay playsinline></video>
+                    <canvas id="calibCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                    <div id="calib-overlay" class="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <p class="text-white text-center">Camera starting...</p>
+                    </div>
+                </div>
+                <div class="text-center mt-6">
+                    <h3 id="calib-letter" class="text-2xl font-bold pb-2">Perform the 'A' sign</h3>
+                    <p id="calib-desc" class="text-slate-500 text-sm">Make a fist with thumb to the side. Hold for 2 seconds.</p>
+                </div>
+                
+                <!-- Calibration status -->
+                <div id="calib-status" class="mt-4 hidden">
+                    <div class="flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full">
+                        <span class="material-symbols-outlined text-lg">check_circle</span>
+                        <span class="text-sm font-medium">Calibration complete!</span>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="flex items-center justify-center gap-6 pb-4">
+                    <button onclick="switchCamera()" class="flex shrink-0 items-center justify-center rounded-full size-12 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                        <span class="material-symbols-outlined">flip_camera_ios</span>
+                    </button>
+                    <button onclick="startCalibration()" id="calib-btn" class="flex shrink-0 items-center justify-center rounded-full size-20 bg-primary text-white shadow-lg hover:bg-primary-dark transition-colors">
+                        <span class="material-symbols-outlined text-4xl">videocam</span>
+                    </button>
+                    <button onclick="skipCalibration()" class="flex shrink-0 items-center justify-center rounded-full size-12 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                        <span class="material-symbols-outlined">skip_next</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- FACE DETECTION SCREEN -->
+        <div id="face-screen" class="hidden flex-col h-full">
+            <div class="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-4 bg-gradient-to-b from-black/60 to-transparent">
+                <button onclick="showScreen('home')" class="text-white p-2 hover:bg-white/10 rounded-full">
+                    <span class="material-symbols-outlined text-2xl">arrow_back</span>
+                </button>
+                <h1 class="text-white text-lg font-bold">Face & Pose Detection</h1>
+                <button onclick="showContextHelp('face')" class="text-white p-2 hover:bg-white/10 rounded-full">
+                    <span class="material-symbols-outlined text-2xl">help_outline</span>
+                </button>
+            </div>
+
+            <div class="flex-1 camera-feed relative">
+                <video id="faceVideo" class="w-full h-full object-cover" autoplay playsinline></video>
+                <canvas id="faceCanvas" class="absolute inset-0 w-full h-full"></canvas>
+                
+                <div class="absolute top-16 left-4 flex flex-col gap-2">
+                    <div class="bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2">
+                        <span id="face-det-status" class="w-2 h-2 rounded-full bg-green-500"></span>
+                        <span class="text-xs text-white">Face Detection Active</span>
+                    </div>
+                    <div class="bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full flex items-center gap-2">
+                        <span id="pose-det-status" class="w-2 h-2 rounded-full bg-green-500"></span>
+                        <span class="text-xs text-white">Pose Detection Active</span>
+                    </div>
+                </div>
+
+                <div class="absolute bottom-40 left-4 bg-black/50 backdrop-blur-sm px-3 py-2 rounded-xl">
+                    <p class="text-xs text-white/70 mb-1">Detected</p>
+                    <p id="face-pose-info" class="text-sm text-white font-medium">--</p>
+                </div>
+            </div>
+
+            <div class="absolute bottom-0 left-0 right-0 px-4 pb-4">
+                <div class="flex flex-col gap-4 rounded-xl border border-white/20 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl p-5 shadow-2xl">
+                    <div class="flex items-center justify-between">
+                        <span class="text-primary text-xs font-bold uppercase">Detection Info</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-slate-100 dark:bg-slate-800 p-3 rounded-lg text-center">
+                            <p class="text-2xl font-bold text-primary" id="face-points">0</p>
+                            <p class="text-xs text-slate-500">Face Points</p>
+                        </div>
+                        <div class="bg-slate-100 dark:bg-slate-800 p-3 rounded-lg text-center">
+                            <p class="text-2xl font-bold text-primary" id="pose-points">0</p>
+                            <p class="text-xs text-slate-500">Pose Points</p>
+                        </div>
+                    </div>
+                    <button onclick="speakFaceInfo()" class="w-full flex items-center justify-center gap-2 rounded-lg h-12 bg-primary text-white font-bold">
+                        <span class="material-symbols-outlined">volume_up</span>
+                        <span>Speak Info</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABOUT SCREEN -->
+        <div id="about-screen" class="hidden flex-col h-full">
+            <div class="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+                <button onclick="showScreen('home')" class="text-slate-700 dark:text-slate-300 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                    <span class="material-symbols-outlined text-2xl">arrow_back</span>
+                </button>
+                <h1 class="text-slate-900 dark:text-white text-lg font-bold">About</h1>
+                <div class="w-10"></div>
+            </div>
+            <div class="flex-1 p-4 overflow-y-auto space-y-6">
+                <div class="text-center py-8">
+                    <div class="w-20 h-20 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                        <span class="material-symbols-outlined text-4xl text-white">translate</span>
+                    </div>
+                    <h2 class="text-2xl font-bold">Sign Interpreter</h2>
+                    <p class="text-slate-500 mt-1">RAISE-26 Hackathon Project</p>
+                    <p class="text-sm text-primary font-semibold mt-2">Version 1.1.0</p>
+                </div>
+                
+                <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl">
+                    <h3 class="font-bold mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">info</span>About This App
+                    </h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-400">Real-time American Sign Language (ASL) interpreter that uses AI and computer vision to translate sign language gestures into text and speech. Built for the RAISE-26 Hackathon.</p>
+                </div>
+                
+                <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl">
+                    <h3 class="font-bold mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">star</span>Features
+                    </h3>
+                    <ul class="text-sm text-slate-600 dark:text-slate-400 space-y-2">
+                        <li class="flex items-center gap-2"><span class="material-symbols-outlined text-green-500 text-lg">check_circle</span>Real-time ASL detection (A-Z)</li>
+                        <li class="flex items-center gap-2"><span class="material-symbols-outlined text-green-500 text-lg">check_circle</span>Number recognition (0-10)</li>
+                        <li class="flex items-center gap-2"><span class="material-symbols-outlined text-green-500 text-lg">check_circle</span>Common word phrases</li>
+                        <li class="flex items-center gap-2"><span class="material-symbols-outlined text-green-500 text-lg">check_circle</span>Advanced motion tracking</li>
+                        <li class="flex items-center gap-2"><span class="material-symbols-outlined text-green-500 text-lg">check_circle</span>Text-to-speech output</li>
+                        <li class="flex items-center gap-2"><span class="material-symbols-outlined text-green-500 text-lg">check_circle</span>Translation history</li>
+                        <li class="flex items-center gap-2"><span class="material-symbols-outlined text-green-500 text-lg">check_circle</span>Learn ASL with tutorials</li>
+                        <li class="flex items-center gap-2"><span class="material-symbols-outlined text-green-500 text-lg">check_circle</span>Hand calibration</li>
+                    </ul>
+                </div>
+                
+                <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl">
+                    <h3 class="font-bold mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">memory</span>Technology
+                    </h3>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-semibold">MediaPipe Holistic</span>
+                        <span class="px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-semibold">TensorFlow.js</span>
+                        <span class="px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-semibold">Tailwind CSS</span>
+                        <span class="px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-semibold">Vercel</span>
+                    </div>
+                </div>
+                
+                <div class="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl">
+                    <h3 class="font-bold mb-3 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">help</span>Tips for Best Results
+                    </h3>
+                    <ul class="text-sm text-slate-600 dark:text-slate-400 space-y-2">
+                        <li class="flex items-start gap-2"><span class="material-symbols-outlined text-amber-500">lightbulb</span>Use good lighting - face a light source</li>
+                        <li class="flex items-start gap-2"><span class="material-symbols-outlined text-amber-500">lightbulb</span>Keep your hand steady in the frame</li>
+                        <li class="flex items-start gap-2"><span class="material-symbols-outlined text-amber-500">lightbulb</span>Wear contrasting clothing to your background</li>
+                        <li class="flex items-start gap-2"><span class="material-symbols-outlined text-amber-500">lightbulb</span>Calibrate for personalized accuracy</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="assets/js/main.js"></script>
+</body>
+</html>
