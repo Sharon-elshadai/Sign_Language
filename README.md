@@ -1,6 +1,5 @@
 # Real-Time Sign Language Interpreter
 
-**RAISE-26 Hackathon Project #1559029**
 
 [![Live Demo](https://img.shields.io/badge/Live-Demo-brightgreen)](https://sign-interpreter-five.vercel.app)
 [![GitHub Repo](https://img.shields.io/badge/GitHub-Repo-blue)](https://github.com/dezzydez007/raise-26-sign-interpreter)
@@ -107,10 +106,3 @@ AI-powered real-time ASL interpreter using:
 
 ---
 
-## License
-
-MIT License - RAISE-26 Hackathon Project
-
----
-
-*RAISE-26 Hackathon | Project #1559029*
